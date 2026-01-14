@@ -1,20 +1,6 @@
 """
 Analytics API for TaxaFormer
-
-This module provides privacy-friendly user behavior tracking for the Taxaformer application.
-It tracks page views, user interactions, and basic usage statistics without collecting
-any personally identifiable information (PII).
-
-Key Features:
-- Anonymous session tracking (no user identification)
-- GDPR compliant (no personal data stored)
-- Optional database storage (works without database)
-- Daily session hash rotation for privacy
-- Automatic data cleanup after 90 days
-
-Author: Learning Developer (Age 16)
-Purpose: Understanding web analytics and user behavior tracking
-Privacy: No PII collected, fully anonymous tracking
+Privacy-friendly user behavior tracking
 """
 import os
 import sys
@@ -27,55 +13,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import uuid
 
-# Add parent directory to path for database imports
-# This allows us to import database modules from the parent directory
+# Add parent directory to path for db imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Feature flag for analytics - can be disabled via environment variable
-# Set USE_ANALYTICS=false to completely disable analytics tracking
+# Feature flag for analytics
 USE_ANALYTICS = os.getenv("USE_ANALYTICS", "true").lower() == "true"
 
-# Initialize database connection (optional - analytics works without it)
-# If database is not available, analytics will still work but data won't persist
+# Initialize database (optional - analytics works without it)
 analytics_db = None
 if USE_ANALYTICS:
     try:
-        # Use the same Supabase connection as the main application
-        # This ensures consistency and reduces configuration complexity
+        # Use the same Supabase connection as main app
         from supabase import create_client
-        
-        # Database credentials (should be moved to environment variables for security)
         SUPABASE_URL = os.getenv("SUPABASE_URL", "https://nbnyhdwbnxbheombbhtv.supabase.co")
         SUPABASE_KEY = os.getenv("SUPABASE_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ibnloZHdibnhiaGVvbWJiaHR2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU0MDIyNDksImV4cCI6MjA4MDk3ODI0OX0.u5DxN1eX-K85WepTNCEs5sJw9M13YLmGm5pVe1WKy34")
         
-        # Create Supabase client for analytics data storage
         analytics_db = create_client(SUPABASE_URL, SUPABASE_KEY)
-        print("✅ Analytics database connected")
+        print("[OK] Analytics database connected")
     except Exception as e:
-        # Graceful fallback - analytics will work without database
-        print(f"⚠️ Analytics database not available: {e}")
-        print("⚠️ Analytics will be disabled")
+        print(f"[WARN] Analytics database not available: {e}")
+        print("[WARN] Analytics will be disabled")
         USE_ANALYTICS = False
 
-# Pydantic models for request validation and type safety
-# These define the structure of data we expect from the frontend
-
+# Pydantic models for request validation
 class SessionCreate(BaseModel):
-    """
-    Model for creating a new user session.
-    
-    This captures basic device and browser information for analytics
-    without collecting any personally identifiable information.
-    
-    Attributes:
-        deviceType (str): Device category (desktop, mobile, tablet)
-        browserName (str): Browser name (Chrome, Firefox, Safari, etc.)
-        referrer (str): Referring website (where user came from)
-        userAgent (str): Browser user agent string (for device detection)
-        screenResolution (str): Screen resolution (e.g., "1920x1080")
-        timezone (str): User's timezone (e.g., "America/New_York")
-        language (str): Browser language preference (e.g., "en-US")
-    """
     deviceType: str
     browserName: str
     referrer: str
@@ -85,16 +46,6 @@ class SessionCreate(BaseModel):
     language: str
 
 class SessionUpdate(BaseModel):
-    """
-    Model for updating an existing session with activity data.
-    
-    This tracks user engagement and session duration without
-    identifying individual users.
-    
-    Attributes:
-        lastActivity (str): ISO timestamp of last user activity
-        pageCount (int): Number of pages viewed in this session
-    """
     lastActivity: str
     pageCount: int
 
@@ -171,11 +122,11 @@ class AnalyticsAPI:
                 # Insert into database
                 analytics_db.table('user_sessions').insert(session_record).execute()
                 
-                print(f"📊 New analytics session created: {session_id}")
+                print(f"[OK] New analytics session created: {session_id}")
                 return {"sessionId": session_id, "status": "created"}
                 
             except Exception as e:
-                print(f"❌ Failed to create analytics session: {e}")
+                print(f"[ERROR] Failed to create analytics session: {e}")
                 return {"sessionId": str(uuid.uuid4()), "status": "error"}
         
         @self.app.put("/api/analytics/session/{session_id}")
@@ -194,7 +145,7 @@ class AnalyticsAPI:
                 return {"status": "updated"}
                 
             except Exception as e:
-                print(f"❌ Failed to update session: {e}")
+                print(f"[ERROR] Failed to update session: {e}")
                 return {"status": "error"}
         
         @self.app.post("/api/analytics/page-view")
@@ -214,11 +165,11 @@ class AnalyticsAPI:
                 }
                 
                 analytics_db.table('page_views').insert(page_record).execute()
-                print(f"📄 Page view tracked: {page_data.pagePath}")
+                print(f"[OK] Page view tracked: {page_data.pagePath}")
                 return {"status": "tracked"}
                 
             except Exception as e:
-                print(f"❌ Failed to track page view: {e}")
+                print(f"[ERROR] Failed to track page view: {e}")
                 return {"status": "error"}
         
         @self.app.post("/api/analytics/interaction")
@@ -239,11 +190,11 @@ class AnalyticsAPI:
                 }
                 
                 db.client.table('user_interactions').insert(interaction_record).execute()
-                print(f"🖱️ Interaction tracked: {interaction_data.interactionType}")
+                print(f"[OK] Interaction tracked: {interaction_data.interactionType}")
                 return {"status": "tracked"}
                 
             except Exception as e:
-                print(f"❌ Failed to track interaction: {e}")
+                print(f"[ERROR] Failed to track interaction: {e}")
                 return {"status": "error"}
         
         @self.app.post("/api/analytics/page-exit")
@@ -268,7 +219,7 @@ class AnalyticsAPI:
                 return {"status": "tracked"}
                 
             except Exception as e:
-                print(f"❌ Failed to track page exit: {e}")
+                print(f"[ERROR] Failed to track page exit: {e}")
                 return {"status": "error"}
         
         @self.app.post("/api/analytics/popular-content")
@@ -290,7 +241,7 @@ class AnalyticsAPI:
                 return {"status": "tracked"}
                 
             except Exception as e:
-                print(f"❌ Failed to track popular content: {e}")
+                print(f"[ERROR] Failed to track popular content: {e}")
                 return {"status": "error"}
         
         @self.app.get("/api/analytics/stats")
@@ -332,7 +283,7 @@ class AnalyticsAPI:
                 }
                 
             except Exception as e:
-                print(f"❌ Failed to get analytics stats: {e}")
+                print(f"[ERROR] Failed to get analytics stats: {e}")
                 return {"status": "error", "message": str(e)}
     
     def generate_session_hash(self, ip_address: str, user_agent: str) -> str:
@@ -360,7 +311,7 @@ class AnalyticsAPI:
 def add_analytics_to_app(app: FastAPI):
     """Add analytics endpoints to existing FastAPI app"""
     analytics_api = AnalyticsAPI(app)
-    print("📊 Analytics API endpoints added")
+    print("[OK] Analytics API endpoints added")
     return analytics_api
 
 # SQL function for updating session time (add to database)
